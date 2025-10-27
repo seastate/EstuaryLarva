@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
 from loadOctave import octaveStruct
 
+from IPython.display import clear_output, display
+
 small = 1.e-10
 
 class SwimSim():
@@ -27,7 +29,7 @@ class SwimSim():
        larval swimming and settlement behavior.
     """
     def __init__(self,estuary=None,larvae=[],days=[59.75,90],dt_sec=15*60,plot_interval=2*3600,
-                 nbins=10):
+                 nbins=10,plot_mode='term'):
         """Create a SwimSim instance.
         """
         self.estuary = estuary
@@ -37,6 +39,11 @@ class SwimSim():
         self.next_plot = 0.
         self.plot_interval = plot_interval
         self.nbins = nbins
+        modes = ['term','ipynb']
+        if plot_mode in modes:
+            self.plot_mode = plot_mode
+        else:
+            print(f'Unknown plot_mode! Currently supported modes are {modes}')
         # Initialize depths of larval cohorts
         for L in self.larvae:
             hs = estuary.bottom_profile(L.Xs)
@@ -123,7 +130,7 @@ class SwimSim():
                         L.competent = np.where((L.stages==L.nstages-1) & (L.Zs==self.estuary.bottom_profile(L.Xs)))
                     L.stages[L.competent] = L.nstages+1
             if self.t >= self.next_plot:
-                print(f'Plotting interval..., t = {self.t}, {self.t/(24*60*60)}')
+                #print(f'Plotting interval..., t = {self.t}, {self.t/(24*60*60)}')
                 self.next_plot = self.t + self.plot_interval
                 self.plot()
 
@@ -167,6 +174,7 @@ class SwimSim():
     def plot(self):
         """Plot the current state of the estuary and larval cohorts.
         """
+        #self.Efig.clf()
         self.Efig.suptitle(self.estuary.labtext[:-1],fontsize=14)
         self.estuary.plot(Cax=self.Cax,Qax=self.Qax,Qax2=self.Qax2)
         for i,L in enumerate(self.larvae):
@@ -174,9 +182,15 @@ class SwimSim():
                 L.plot(Cax=self.Cax)
         self.stats(Hax=self.Hax,Vax=self.Vax)
         self.Efig.tight_layout()
-        plt.draw()
-        plt.pause(0.1)
-
+        if self.plot_mode == 'term':
+            plt.draw()
+            plt.pause(0.001)
+            self.Efig.canvas.draw()
+            self.Efig.canvas.flush_events()
+        elif self.plot_mode == 'ipynb': # plot mode for Jupyter notebooks
+            display(self.Efig)
+            clear_output(wait=True)
+        #plt.pause(0.5)
 
 class Larvae():
     """A class to facilitate defining and simulating the fates of a larval
@@ -421,7 +435,6 @@ class Estuary():
             Cax.set_xlabel('Streamwise position, $X$ ($km$)')
             # Tweak cotours to be visible but not distracting
             CS.set_edgecolor('gray')
-            print(CS.get_linewidth())
             CS.set_linewidth(0.01)
             Cax.clabel(CS, fontsize=7,colors='gray')
         # Display the tidal amplitude and riverine input flow rate
