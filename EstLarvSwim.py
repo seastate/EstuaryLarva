@@ -36,7 +36,6 @@ class SwimSim():
         self.larvae = larvae
         self.days = days
         self.dt_sec = dt_sec
-        self.next_plot = 0.
         self.plot_interval = plot_interval
         self.nbins = nbins
         modes = ['term','ipynb']
@@ -44,21 +43,9 @@ class SwimSim():
             self.plot_mode = plot_mode
         else:
             print(f'Unknown plot_mode! Currently supported modes are {modes}')
-        # Initialize depths of larval cohorts
-        for L in self.larvae:
-            hs = estuary.bottom_profile(L.Xs)
-            L.Zs = L.fractional_depths * hs
         # Initialize variables for the simulations
         self.t_start = self.days[0] * 24*60*60
         self.t_end = self.days[1] * 24*60*60
-        self.t = self.t_start
-        # Initialize times for stages of larval cohorts
-        for L in self.larvae:
-            L.stage_times = [L.release_time]
-            L.stage_ages = [0.]
-            for i,sd in enumerate(L.stage_durations):
-                L.stage_times.append(L.stage_times[-1]+L.stage_durations[i])
-                L.stage_ages.append(L.stage_ages[-1]+L.stage_durations[i])
         # Create a graphics window and add axes for separate plots
         self.Efig = plt.figure(figsize=(12,9))
         self.Efig.tight_layout()
@@ -72,8 +59,21 @@ class SwimSim():
         """Execute a simulation using current parameters.
         """
         # Initialize the current time and flowfield
+        self.next_plot = 0.
         self.t = self.t_start
         self.estuary.update_flow(t=self.t)
+        # Initialize larval positions and stages
+        for L in self.larvae:
+            L.setup()
+            # Initialize depths of larval cohorts
+            hs = self.estuary.bottom_profile(L.Xs)
+            L.Zs = L.fractional_depths * hs
+            L.stage_times = [L.release_time]
+            L.stage_ages = [0.]
+            # Initialize times for stages of larval cohorts
+            for i,sd in enumerate(L.stage_durations):
+                L.stage_times.append(L.stage_times[-1]+L.stage_durations[i])
+                L.stage_ages.append(L.stage_ages[-1]+L.stage_durations[i])
         # Main time loop
         while self.t <= self.t_end:
             self.t += self.dt_sec   # update current simulation time
@@ -181,7 +181,11 @@ class SwimSim():
             if L.release_time <= self.t:
                 L.plot(Cax=self.Cax)
         self.stats(Hax=self.Hax,Vax=self.Vax)
-        self.Efig.tight_layout()
+        # this sometimes fails if the plots are empty
+        try:
+            self.Efig.tight_layout()
+        except:
+            pass
         if self.plot_mode == 'term':
             plt.draw()
             plt.pause(0.001)
@@ -204,8 +208,6 @@ class Larvae():
         """
         # Record the demographic characteristics of this variant
         self.N = N
-        self.age = 0.
-        self.stage = 0
         # nstages is the number of planktonic stages, with distinct swimming parameters.
         # The sequence [0,nstages-1] corresponds to entries for stage duration and velocity.
         # Stage nstages+1 corresponds to settlement. Stage nstages corresponds to death.
@@ -221,9 +223,15 @@ class Larvae():
         self.color = color
         # Calculate cumulative stage durations, converting times from days to seconds
         self.stage_durations = [d*24*60*60 for d in self.stage_durations_days]
-        
         self.release_time = self.release_date * 24*60*60
+
+    def setup(self):
+        """Initialize larval positons and stages. This is done at the beginning
+           of every simulation.
+        """
         # Initialize larval stage and swimming velocity
+        self.age = 0.
+        self.stage = 0
         self.stages = np.zeros([self.N],dtype='int64')  # larvae begin at stage 0
         self.swim_velocities = np.take(self.stage_velocities,self.stages)
         # Initialize locations
