@@ -54,6 +54,7 @@ class SwimSim():
         self.Cax = self.Efig.add_subplot(313)
         self.Hax = self.Efig.add_subplot(323)
         self.Vax = self.Efig.add_subplot(324)
+        self.halt = False
 
     def run(self):
         """Execute a simulation using current parameters.
@@ -75,7 +76,7 @@ class SwimSim():
                 L.stage_times.append(L.stage_times[-1]+L.stage_durations[i])
                 L.stage_ages.append(L.stage_ages[-1]+L.stage_durations[i])
         # Main time loop
-        while self.t <= self.t_end:
+        while self.t <= self.t_end and self.halt == False:
             self.t += self.dt_sec   # update current simulation time
             self.estuary.t = self.t # update the time in the estuary instance
             self.estuary.update_flow()
